@@ -22,6 +22,7 @@ The site reads the published sheet set in `src/config.ts`:
 | TBR        | `1859169813` | Title, Author, Series, Genre              |
 
 - Header names aren't case-sensitive, and extra spaces are ignored.
+- Rating can be a number out of 10 (`8.5`), a fraction (`4/5`), or stars (`★★★½`).
 - Leave **Series** blank for a standalone book.
 - Separate multiple genres with commas.
 - Small typos in series or author names (e.g. "Archives" vs "Archieves") are merged into one shelf, labelled with the spelling you use most.
@@ -40,6 +41,7 @@ To use a different sheet, publish it with **File → Share → Publish to web**.
 ```bash
 npm install
 npm run dev
+npm test   # unit tests
 ```
 
 To work offline with the bundled sample CSVs, run `VITE_USE_SAMPLE=1 npm run dev`.
