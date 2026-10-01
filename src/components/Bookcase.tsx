@@ -10,7 +10,7 @@ interface Props {
   /** Books per full shelf; spines are scaled so a full shelf spans the bookcase. */
   capacity: number;
   badge: (b: Book) => string | undefined;
-  activeId?: string;
+  activeEl?: HTMLElement;
   onActivate: (book: Book, el: HTMLElement) => void;
   onToggle: (book: Book, el: HTMLElement) => void;
   onDeactivate: () => void;
@@ -20,7 +20,7 @@ interface Props {
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 
-export function Bookcase({ label, sublabel, shelves, capacity, badge, activeId, ...handlers }: Props) {
+export function Bookcase({ label, sublabel, shelves, capacity, badge, activeEl, ...handlers }: Props) {
   const ref = useRef<HTMLElement>(null);
   const [rowWidth, setRowWidth] = useState(0);
 
@@ -80,7 +80,7 @@ export function Bookcase({ label, sublabel, shelves, capacity, badge, activeId, 
               book={b}
               scale={scaleFor(i)}
               badge={badge(b)}
-              active={activeId === b.id}
+              activeEl={activeEl}
               {...handlers}
             />
           ))}

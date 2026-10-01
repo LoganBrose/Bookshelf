@@ -70,7 +70,7 @@ function summary(books: Book[]) {
 }
 
 export function App() {
-  const { read, tbr, loading, error } = useBooks();
+  const { read, tbr, loading, error, stale } = useBooks();
   const [tab, setTab] = usePersisted<Tab>('bookshelf.tab', 'shelf');
   const [savedGroupBy, setGroupBy] = usePersisted<GroupBy>('bookshelf.groupBy', 'genre');
   // Older visits may have saved 'series', which is no longer an option.
@@ -96,11 +96,14 @@ export function App() {
       if (e.type === 'pointerdown' && (e.target as HTMLElement).closest?.('.spine')) return;
       setActive(undefined);
     };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setActive(undefined);
     window.addEventListener('scroll', close, true);
     window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', onKey);
     };
   }, [active]);
 
@@ -112,7 +115,7 @@ export function App() {
       setActive({ book, el, kind });
     };
     return {
-      activeId: active?.book.id,
+      activeEl: active?.el,
       onActivate: open,
       // A tap fires hover, focus and click together; only a later tap closes it.
       onToggle: (book: Book, el: HTMLElement) => {
@@ -123,13 +126,19 @@ export function App() {
     };
   };
 
+  // Grouping and packing don't depend on looked-up info, so they're memoized
+  // rather than redone each time a lookup result arrives.
   const q = query.trim().toLowerCase();
-  const filteredRead = q
-    ? read.filter((b) =>
-        [b.title, b.author, b.series, ...b.genres].some((s) => s.toLowerCase().includes(q)),
-      )
-    : read;
+  const bookcases = useMemo(() => {
+    const filtered = q
+      ? read.filter((b) =>
+          [b.title, b.author, b.series, ...b.genres].some((s) => s.toLowerCase().includes(q)),
+        )
+      : read;
+    return groupBooks(filtered, groupBy).map((g) => ({ ...g, shelves: packShelves(g.books, perShelf) }));
+  }, [read, q, groupBy, perShelf]);
 
+  const packedTbr = useMemo(() => packShelves(tbr, perShelf), [tbr, perShelf]);
   const tbrShelves =
     tbrSort === 'rating'
       ? chunk(
@@ -138,7 +147,7 @@ export function App() {
           ),
           perShelf,
         )
-      : packShelves(tbr, perShelf);
+      : packedTbr;
 
   const stepper = (
     <div className="stepper" aria-label="Books per shelf">
@@ -198,6 +207,11 @@ export function App() {
       <main>
         {loading && <p className="status">Pulling books off the shelf…</p>}
         {error && <p className="status error">{error}</p>}
+        {stale && (
+          <p className="status muted">
+            Couldn't reach your Google Sheet — showing your last saved copy.
+          </p>
+        )}
 
         {!loading && !error && tab === 'shelf' && (
           <>
@@ -225,13 +239,13 @@ export function App() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            {filteredRead.length === 0 && <p className="status">No books match “{query}”.</p>}
-            {groupBooks(filteredRead, groupBy).map((g) => (
+            {bookcases.length === 0 && <p className="status">No books match “{query}”.</p>}
+            {bookcases.map((g) => (
               <Bookcase
                 key={g.label}
                 label={g.label}
                 sublabel={summary(g.books)}
-                shelves={packShelves(g.books, perShelf)}
+                shelves={g.shelves}
                 capacity={perShelf}
                 badge={(b) => ratingBadge(b.rating)}
                 {...handlers('read')}
