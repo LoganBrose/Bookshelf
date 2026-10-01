@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { Book } from '../types';
 import { getInfo } from '../data/bookLookup';
 import { formatRating } from './Stars';
@@ -52,13 +53,16 @@ interface Props {
   scale?: number;
   /** Shown as a badge on the spine. */
   badge?: string;
-  active: boolean;
+  /** The spine element the popover is open for; only that copy of a book is highlighted. */
+  activeEl?: HTMLElement;
   onActivate: (book: Book, el: HTMLElement) => void;
   onToggle: (book: Book, el: HTMLElement) => void;
   onDeactivate: () => void;
 }
 
-export function Spine({ book, scale = 1, badge, active, onActivate, onToggle, onDeactivate }: Props) {
+export function Spine({ book, scale = 1, badge, activeEl, onActivate, onToggle, onDeactivate }: Props) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const active = activeEl != null && activeEl === ref.current;
   const info = getInfo(book);
   // Books in a series share a colour and height, like a matching set.
   const setKey = hash(book.series || book.title);
@@ -80,6 +84,7 @@ export function Spine({ book, scale = 1, badge, active, onActivate, onToggle, on
   return (
     <div className="spine-slot">
       <button
+        ref={ref}
         type="button"
         className={`spine${active ? ' is-active' : ''}`}
         style={{ width, height, background: bg, color: fg }}
