@@ -24,7 +24,10 @@ function hash(s: string) {
   return h >>> 0;
 }
 
-/** ~150 pages → 18px, ~1300 pages → 70px. */
+/** Space between spines, matching `.spine-slot` margin in styles.css. */
+export const SPINE_GAP = 2;
+
+/** ~150 pages → 18px, ~1300 pages → 70px (before shelf scaling). */
 export function spineWidth(pages?: number) {
   if (!pages) return 34;
   return Math.round(Math.max(18, Math.min(70, 18 + ((pages - 150) * 52) / 1150)));
@@ -32,6 +35,8 @@ export function spineWidth(pages?: number) {
 
 interface Props {
   book: Book;
+  /** Thickness multiplier so a full shelf spans the bookcase. */
+  scale?: number;
   /** Shown as a badge on the spine. */
   badge?: string;
   active: boolean;
@@ -40,15 +45,15 @@ interface Props {
   onDeactivate: () => void;
 }
 
-export function Spine({ book, badge, active, onActivate, onToggle, onDeactivate }: Props) {
+export function Spine({ book, scale = 1, badge, active, onActivate, onToggle, onDeactivate }: Props) {
   const info = getInfo(book);
   const h = hash(book.title);
   const [bg, fg] = PALETTE[h % PALETTE.length];
-  const width = spineWidth(info.pageCount);
+  const width = spineWidth(info.pageCount) * scale;
   const height = 230 + (h % 50);
   const lastName = book.author.split(' ').pop() ?? '';
   // Wide spines fit two lines of title; thin ones get one smaller line.
-  const lines = width >= 40 ? 2 : 1;
+  const lines = width >= 32 ? 2 : 1;
   const titleSize = Math.max(10, Math.min(14, (width - 8) / (lines * 1.25)));
 
   return (

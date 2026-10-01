@@ -2,9 +2,13 @@
 
 A personal bookshelf site built from a Google Sheet.
 
-- **Bookshelf**: every book you've read appears as a spine. You can group the shelves by **series**, **author** or **genre**. Hover or tap a spine to see its cover, your rating (out of 10 stars), the genre and the page count. Spine thickness reflects the book's length.
+- **Bookshelf**: one bookcase per **genre** (or per **author**). Every book you've read appears as a spine.
+  - Each shelf holds **12 books** by default. Use the − / + control to change this.
+  - **Series stay together.** If a series won't fit in the space left on a shelf, it moves to the next shelf, and later books fill the gap. A series longer than a whole shelf runs across shelves.
+  - Spine thickness reflects the book's length, and a full shelf spans the bookcase.
+  - Hover over or tap a spine to see its cover, your rating (out of 10 stars), the genre and the page count.
 - **Rankings**: all your read books, ordered by your rating.
-- **TBR**: your to-be-read shelf, showing each book's public rating (out of 5 stars) from Open Library and Google Books. You can sort it by your order or by highest rated.
+- **TBR**: your to-be-read bookcase (packed the same way), showing each book's public rating (out of 5 stars) from Open Library and Google Books. You can sort it by your order or by highest rated.
 
 Covers, page counts and web ratings are looked up automatically from Open Library and Google Books, then cached in your browser.
 
