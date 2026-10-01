@@ -8,6 +8,7 @@ import { ratingBadge } from './components/Spine';
 import { CoverPopover } from './components/CoverPopover';
 import { Rankings } from './components/Rankings';
 import { formatRating } from './components/Stars';
+import { CurrentlyReading } from './components/CurrentlyReading';
 
 type Tab = 'shelf' | 'rankings' | 'tbr';
 type GroupBy = 'genre' | 'author';
@@ -130,15 +131,19 @@ export function App() {
       )
     : read;
 
+  // The current read is featured at the top instead of sitting on the TBR shelf.
+  const reading = tbr.filter((b) => b.reading);
+  const waiting = tbr.filter((b) => !b.reading);
+
   const tbrShelves =
     tbrSort === 'rating'
       ? chunk(
-          [...tbr].sort(
+          [...waiting].sort(
             (a, b) => (getInfo(b).webRating ?? -1) - (getInfo(a).webRating ?? -1) || a.order - b.order,
           ),
           perShelf,
         )
-      : packShelves(tbr, perShelf);
+      : packShelves(waiting, perShelf);
 
   const stepper = (
     <div className="stepper" aria-label="Books per shelf">
@@ -169,8 +174,9 @@ export function App() {
         <h1>My Bookshelf</h1>
         <p className="tagline">
           {read.length} read
-          {totalPages > 0 && ` · ${totalPages.toLocaleString()} pages`} · {tbr.length} to be read
+          {totalPages > 0 && ` · ${totalPages.toLocaleString()} pages`} · {waiting.length} to be read
         </p>
+        {reading.length > 0 && <CurrentlyReading books={reading} />}
         <nav className="tabs" role="tablist">
           {(
             [
@@ -267,12 +273,12 @@ export function App() {
               {stepper}
               <p className="muted toolbar-note">Ratings out of 5 from Open Library / Google Books</p>
             </div>
-            {tbr.length === 0 ? (
+            {waiting.length === 0 ? (
               <p className="status">Your TBR shelf is empty.</p>
             ) : (
               <Bookcase
                 label="To Be Read"
-                sublabel={`${tbr.length} book${tbr.length === 1 ? '' : 's'} waiting`}
+                sublabel={`${waiting.length} book${waiting.length === 1 ? '' : 's'} waiting`}
                 shelves={tbrShelves}
                 capacity={perShelf}
                 badge={(b) => {
