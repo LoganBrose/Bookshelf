@@ -18,7 +18,7 @@ interface Props {
 
 // Never shrink below natural thickness (narrow screens wrap instead).
 const MIN_SCALE = 1;
-const MAX_SCALE = 2.5;
+const MAX_SCALE = 4;
 
 export function Bookcase({ label, sublabel, shelves, capacity, badge, activeId, ...handlers }: Props) {
   const ref = useRef<HTMLElement>(null);
@@ -37,19 +37,34 @@ export function Bookcase({ label, sublabel, shelves, capacity, badge, activeId, 
     return () => ro.disconnect();
   }, []);
 
-  // Natural spine width of a full shelf (gaps excluded, as they don't scale):
-  // the widest full shelf here, or an estimate from this bookcase's average book.
+  // Every shelf but the last is scaled to span the bookcase exactly (a shelf can
+  // be short of `capacity` when a series moved down). The last shelf uses the
+  // others' average scale so it doesn't stretch; with only one shelf, scale is
+  // estimated from this bookcase's average book.
+  const clamp = (n: number) => Math.max(MIN_SCALE, Math.min(MAX_SCALE, n));
   const widths = shelves.map((shelf) =>
     shelf.reduce((sum, b) => sum + spineWidth(getInfo(b).pageCount), 0),
   );
-  const fullShelves = widths.filter((_, i) => shelves[i].length >= capacity);
+  const last = shelves.length - 1;
+  // Spine space on a shelf: its width less the gaps between its books.
+  const fillScale = (i: number) =>
+    clamp((rowWidth - shelves[i].length * SPINE_GAP - 4) / widths[i]);
+  const filledScales = widths.slice(0, last).map((_, i) => fillScale(i));
   const bookCount = shelves.reduce((n, s) => n + s.length, 0);
-  const fullWidth = fullShelves.length
-    ? Math.max(...fullShelves)
-    : (widths.reduce((a, b) => a + b, 0) / Math.max(1, bookCount)) * capacity;
-  const available = rowWidth - capacity * SPINE_GAP - 4;
-  const scale =
-    rowWidth && fullWidth ? Math.max(MIN_SCALE, Math.min(MAX_SCALE, available / fullWidth)) : 1;
+  const lastScale = filledScales.length
+    ? filledScales.reduce((a, b) => a + b, 0) / filledScales.length
+    : shelves[last]?.length >= capacity
+      ? fillScale(last)
+      : clamp(
+          (rowWidth - capacity * SPINE_GAP - 4) /
+            ((widths.reduce((a, b) => a + b, 0) / Math.max(1, bookCount)) * capacity),
+        );
+  const scaleFor = (i: number) =>
+    !rowWidth || !widths[i]
+      ? 1
+      : i < last || shelves[i].length >= capacity
+        ? fillScale(i)
+        : lastScale;
 
   return (
     <section className="bookcase" ref={ref}>
@@ -63,7 +78,7 @@ export function Bookcase({ label, sublabel, shelves, capacity, badge, activeId, 
             <Spine
               key={b.id}
               book={b}
-              scale={scale}
+              scale={scaleFor(i)}
               badge={badge(b)}
               active={activeId === b.id}
               {...handlers}
