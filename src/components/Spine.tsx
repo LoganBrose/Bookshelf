@@ -24,7 +24,10 @@ function hash(s: string) {
   return h >>> 0;
 }
 
-/** ~150 pages → 18px, ~1300 pages → 70px. */
+/** Space between spines, matching `.spine-slot` margin in styles.css. */
+export const SPINE_GAP = 2;
+
+/** ~150 pages → 18px, ~1300 pages → 70px (before shelf scaling). */
 export function spineWidth(pages?: number) {
   if (!pages) return 34;
   return Math.round(Math.max(18, Math.min(70, 18 + ((pages - 150) * 52) / 1150)));
@@ -32,6 +35,8 @@ export function spineWidth(pages?: number) {
 
 interface Props {
   book: Book;
+  /** Thickness multiplier so a full shelf spans the bookcase. */
+  scale?: number;
   /** Shown as a badge on the spine. */
   badge?: string;
   active: boolean;
@@ -40,16 +45,24 @@ interface Props {
   onDeactivate: () => void;
 }
 
-export function Spine({ book, badge, active, onActivate, onToggle, onDeactivate }: Props) {
+export function Spine({ book, scale = 1, badge, active, onActivate, onToggle, onDeactivate }: Props) {
   const info = getInfo(book);
   const h = hash(book.title);
   const [bg, fg] = PALETTE[h % PALETTE.length];
-  const width = spineWidth(info.pageCount);
-  const height = 230 + (h % 50);
+  const width = spineWidth(info.pageCount) * scale;
+  // Books in a series share a height, like a matching set.
+  const height = 230 + (hash(book.series || book.title) % 50);
   const lastName = book.author.split(' ').pop() ?? '';
-  // Wide spines fit two lines of title; thin ones get one smaller line.
-  const lines = width >= 40 ? 2 : 1;
-  const titleSize = Math.max(10, Math.min(14, (width - 8) / (lines * 1.25)));
+  // Show the author's name unless dropping it lets a cramped title grow noticeably.
+  let showAuthor = width >= 24;
+  let { titleSize, lines } = fitTitle(book.title, width, height, showAuthor ? lastName : '');
+  if (showAuthor && titleSize < 16) {
+    const bare = fitTitle(book.title, width, height, '');
+    if (bare.titleSize - titleSize >= 3) {
+      ({ titleSize, lines } = bare);
+      showAuthor = false;
+    }
+  }
 
   return (
     <div className="spine-slot">
@@ -72,11 +85,32 @@ export function Spine({ book, badge, active, onActivate, onToggle, onDeactivate 
         >
           {book.title}
         </span>
-        {width >= 24 && <span className="spine-author">{lastName}</span>}
+        {showAuthor && <span className="spine-author">{lastName}</span>}
         <span className="spine-band bottom" />
       </button>
     </div>
   );
 }
+
+/**
+ * Largest title font (and line count) that fits the spine: each line has to
+ * fit the spine's length, and all lines together its width.
+ */
+function fitTitle(title: string, width: number, height: number, author: string) {
+  const free = height - 26 - 24 - (author ? author.length * 8 + 10 : 0) - 12;
+  // A line can't be shorter than the longest word, since words don't break.
+  const longestWord = Math.max(...title.split(/\s+/).map((w) => w.length));
+  let best = { titleSize: 10, lines: 1 };
+  for (let lines = 1; lines <= 3; lines++) {
+    const lineChars = Math.max(longestWord, title.length / lines);
+    const byWidth = (width - 8) / (lines * 1.12);
+    const byLength = free / ((lineChars + 1.5) * 0.62);
+    const size = Math.min(MAX_TITLE, byWidth, byLength);
+    if (size > best.titleSize) best = { titleSize: size, lines };
+  }
+  return best;
+}
+
+const MAX_TITLE = 24;
 
 export const ratingBadge = (n?: number) => (n == null ? undefined : formatRating(n));

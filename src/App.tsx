@@ -2,16 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from './types';
 import { useBooks } from './hooks/useBooks';
 import { getInfo, useBookInfos } from './data/bookLookup';
-import { Shelf } from './components/Shelf';
+import { Bookcase } from './components/Bookcase';
+import { packShelves } from './data/packShelves';
 import { ratingBadge } from './components/Spine';
 import { CoverPopover } from './components/CoverPopover';
 import { Rankings } from './components/Rankings';
 import { formatRating } from './components/Stars';
 
 type Tab = 'shelf' | 'rankings' | 'tbr';
-type GroupBy = 'series' | 'author' | 'genre';
+type GroupBy = 'genre' | 'author';
 
-const STANDALONE = 'Standalones';
+const DEFAULT_PER_SHELF = 12;
+const MIN_PER_SHELF = 6;
+const MAX_PER_SHELF = 20;
 const NO_GENRE = 'Uncategorized';
 
 function usePersisted<T extends string>(key: string, initial: T): [T, (v: T) => void] {
@@ -39,21 +42,23 @@ function groupBooks(books: Book[], by: GroupBy) {
   const groups = new Map<string, Book[]>();
   const add = (k: string, b: Book) => groups.set(k, [...(groups.get(k) ?? []), b]);
   for (const b of books) {
-    if (by === 'series') add(b.series || STANDALONE, b);
-    else if (by === 'author') add(b.author || 'Unknown author', b);
+    if (by === 'author') add(b.author || 'Unknown author', b);
     else (b.genres.length ? b.genres : [NO_GENRE]).forEach((g) => add(g, b));
   }
-  const bySeriesOrder = (a: Book, b: Book) =>
-    a.series.localeCompare(b.series) ||
-    (a.seriesNumber ?? Infinity) - (b.seriesNumber ?? Infinity) ||
-    a.order - b.order;
+  // Books stay in sheet order; packShelves keeps each series together.
   return [...groups.entries()]
-    .map(([label, list]) => ({ label, books: list.sort(bySeriesOrder) }))
+    .map(([label, list]) => ({ label, books: list }))
     .sort((a, b) => {
-      const last = (l: string) => l === STANDALONE || l === NO_GENRE;
+      const last = (l: string) => l === NO_GENRE;
       if (last(a.label) !== last(b.label)) return last(a.label) ? 1 : -1;
       return a.label.replace(/^the\s+/i, '').localeCompare(b.label.replace(/^the\s+/i, ''));
     });
+}
+
+function chunk<T>(list: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
 }
 
 function summary(books: Book[]) {
@@ -67,7 +72,15 @@ function summary(books: Book[]) {
 export function App() {
   const { read, tbr, loading, error } = useBooks();
   const [tab, setTab] = usePersisted<Tab>('bookshelf.tab', 'shelf');
-  const [groupBy, setGroupBy] = usePersisted<GroupBy>('bookshelf.groupBy', 'series');
+  const [savedGroupBy, setGroupBy] = usePersisted<GroupBy>('bookshelf.groupBy', 'genre');
+  // Older visits may have saved 'series', which is no longer an option.
+  const groupBy: GroupBy = savedGroupBy === 'author' ? 'author' : 'genre';
+  const [savedPerShelf, setSavedPerShelf] = usePersisted('bookshelf.perShelf', String(DEFAULT_PER_SHELF));
+  const perShelf = Math.min(
+    MAX_PER_SHELF,
+    Math.max(MIN_PER_SHELF, parseInt(savedPerShelf, 10) || DEFAULT_PER_SHELF),
+  );
+  const setPerShelf = (n: number) => setSavedPerShelf(String(n));
   const [tbrSort, setTbrSort] = usePersisted<'sheet' | 'rating'>('bookshelf.tbrSort', 'sheet');
   const [query, setQuery] = useState('');
   const [active, setActive] = useState<{ book: Book; el: HTMLElement; kind: 'read' | 'tbr' }>();
@@ -117,12 +130,36 @@ export function App() {
       )
     : read;
 
-  const tbrBooks =
+  const tbrShelves =
     tbrSort === 'rating'
-      ? [...tbr].sort(
-          (a, b) => (getInfo(b).webRating ?? -1) - (getInfo(a).webRating ?? -1) || a.order - b.order,
+      ? chunk(
+          [...tbr].sort(
+            (a, b) => (getInfo(b).webRating ?? -1) - (getInfo(a).webRating ?? -1) || a.order - b.order,
+          ),
+          perShelf,
         )
-      : tbr;
+      : packShelves(tbr, perShelf);
+
+  const stepper = (
+    <div className="stepper" aria-label="Books per shelf">
+      <span className="segmented-label">Per shelf</span>
+      <button
+        aria-label="Fewer books per shelf"
+        disabled={perShelf <= MIN_PER_SHELF}
+        onClick={() => setPerShelf(perShelf - 1)}
+      >
+        −
+      </button>
+      <span className="stepper-value">{perShelf}</span>
+      <button
+        aria-label="More books per shelf"
+        disabled={perShelf >= MAX_PER_SHELF}
+        onClick={() => setPerShelf(perShelf + 1)}
+      >
+        +
+      </button>
+    </div>
+  );
 
   const totalPages = read.reduce((s, b) => s + (getInfo(b).pageCount ?? 0), 0);
 
@@ -167,7 +204,7 @@ export function App() {
             <div className="toolbar">
               <div className="segmented" role="radiogroup" aria-label="Group by">
                 <span className="segmented-label">Group by</span>
-                {(['series', 'author', 'genre'] as const).map((g) => (
+                {(['genre', 'author'] as const).map((g) => (
                   <button
                     key={g}
                     role="radio"
@@ -179,6 +216,7 @@ export function App() {
                   </button>
                 ))}
               </div>
+              {stepper}
               <input
                 className="search"
                 type="search"
@@ -189,11 +227,12 @@ export function App() {
             </div>
             {filteredRead.length === 0 && <p className="status">No books match “{query}”.</p>}
             {groupBooks(filteredRead, groupBy).map((g) => (
-              <Shelf
+              <Bookcase
                 key={g.label}
                 label={g.label}
                 sublabel={summary(g.books)}
-                books={g.books}
+                shelves={packShelves(g.books, perShelf)}
+                capacity={perShelf}
                 badge={(b) => ratingBadge(b.rating)}
                 {...handlers('read')}
               />
@@ -225,15 +264,17 @@ export function App() {
                   </button>
                 ))}
               </div>
+              {stepper}
               <p className="muted toolbar-note">Ratings out of 5 from Open Library / Google Books</p>
             </div>
             {tbr.length === 0 ? (
               <p className="status">Your TBR shelf is empty.</p>
             ) : (
-              <Shelf
+              <Bookcase
                 label="To Be Read"
                 sublabel={`${tbr.length} book${tbr.length === 1 ? '' : 's'} waiting`}
-                books={tbrBooks}
+                shelves={tbrShelves}
+                capacity={perShelf}
                 badge={(b) => {
                   const r = getInfo(b).webRating;
                   return r == null ? undefined : `${formatRating(r)}★`;
