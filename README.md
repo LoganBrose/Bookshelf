@@ -19,10 +19,11 @@ The site reads the published sheet set in `src/config.ts`:
 | Tab        | gid          | Columns                                   |
 | ---------- | ------------ | ----------------------------------------- |
 | Books Read | `0`          | Title, Author, Series, Genre, Rating (/10) |
-| TBR        | `1859169813` | Title, Author, Series, Genre              |
+| TBR        | `1859169813` | Title, Author, Series, Genre, Reading     |
 
 - Header names aren't case-sensitive, and extra spaces are ignored.
 - Rating can be a number out of 10 (`8.5`), a fraction (`4/5`), or stars (`★★★½`).
+- Put anything (e.g. "Yes", "x" or a ticked checkbox) in a TBR row's **Reading** column to feature that book under **Currently reading** at the top of the page. It's taken off the TBR shelf while you read it. Leave the column blank, or write "No", for every other book.
 - Leave **Series** blank for a standalone book.
 - Separate multiple genres with commas.
 - Small typos in series or author names (e.g. "Archives" vs "Archieves") are merged into one shelf, labelled with the spelling you use most.

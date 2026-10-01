@@ -9,6 +9,8 @@ export interface Book {
   /** Your rating out of 10 (Books Read only). */
   rating?: number;
   dateRead?: string;
+  /** Marked in the TBR tab's Reading column as the current read. */
+  reading?: boolean;
   /** Page count from the sheet, if a Pages column exists. */
   pages?: number;
   /** Cover URL from the sheet, if a Cover column exists. */

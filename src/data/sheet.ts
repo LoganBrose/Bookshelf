@@ -13,6 +13,7 @@ const ALIASES: Record<string, string[]> = {
   dateRead: ['date read', 'date finished', 'finished', 'date'],
   pages: ['pages', 'page count', 'length'],
   coverUrl: ['cover', 'cover url', 'image'],
+  reading: ['reading', 'currently reading', 'current read', 'current'],
 };
 
 const normHeader = (h: string) => h.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -35,6 +36,9 @@ export function parseRating(raw: string): number | undefined {
   const n = parseFloat(raw.replace(',', '.'));
   return Number.isFinite(n) ? n : undefined;
 }
+
+/** Any value marks the row ("Yes", "x", a ticked checkbox) except an explicit no. */
+const isMarked = (raw: string) => raw !== '' && !/^(no|n|false|0|-)$/i.test(raw);
 
 const parseNum = (raw: string) => {
   const n = parseFloat(raw.replace(/,/g, ''));
@@ -62,6 +66,7 @@ export function parseBooks(csv: string, prefix: string): Book[] {
         dateRead: pick(row, 'dateRead') || undefined,
         pages: parseNum(pick(row, 'pages')),
         coverUrl: pick(row, 'coverUrl') || undefined,
+        reading: isMarked(pick(row, 'reading')),
         order: i,
       } satisfies Book;
     })
