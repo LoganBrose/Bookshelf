@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Book } from '../types';
 import { BOOKS_READ_GID, TBR_GID, USE_SAMPLE, csvUrl } from '../config';
 import { normalizeBooks, parseBooks } from '../data/sheet';
+import { assignSeriesColors } from '../components/Spine';
 import sampleRead from '../data/sample-read.csv?raw';
 import sampleTbr from '../data/sample-tbr.csv?raw';
 
@@ -30,6 +31,7 @@ export function useBooks() {
         const read = parseBooks(readCsv, 'read');
         const tbr = parseBooks(tbrCsv, 'tbr');
         normalizeBooks(read, tbr);
+        assignSeriesColors([...read, ...tbr]);
         setState({ read, tbr, loading: false });
       })
       .catch((e: Error) => setState({ read: [], tbr: [], loading: false, error: e.message }));

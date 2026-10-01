@@ -18,6 +18,19 @@ const PALETTE: [string, string][] = [
   ['#4f6d7a', '#f4ead2'],
 ];
 
+// Series colour assignments, made in sheet order so different series get
+// different colours until the palette runs out.
+const seriesColor = new Map<string, number>();
+
+export function assignSeriesColors(books: Book[]) {
+  seriesColor.clear();
+  for (const b of books) {
+    if (b.series && !seriesColor.has(b.series)) {
+      seriesColor.set(b.series, seriesColor.size % PALETTE.length);
+    }
+  }
+}
+
 function hash(s: string) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
@@ -47,11 +60,11 @@ interface Props {
 
 export function Spine({ book, scale = 1, badge, active, onActivate, onToggle, onDeactivate }: Props) {
   const info = getInfo(book);
-  const h = hash(book.title);
-  const [bg, fg] = PALETTE[h % PALETTE.length];
+  // Books in a series share a colour and height, like a matching set.
+  const setKey = hash(book.series || book.title);
+  const [bg, fg] = PALETTE[seriesColor.get(book.series) ?? setKey % PALETTE.length];
   const width = spineWidth(info.pageCount) * scale;
-  // Books in a series share a height, like a matching set.
-  const height = 230 + (hash(book.series || book.title) % 50);
+  const height = 230 + (setKey % 50);
   const lastName = book.author.split(' ').pop() ?? '';
   // Show the author's name unless dropping it lets a cramped title grow noticeably.
   let showAuthor = width >= 24;
