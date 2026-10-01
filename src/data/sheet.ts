@@ -13,6 +13,7 @@ const ALIASES: Record<string, string[]> = {
   dateRead: ['date read', 'date finished', 'finished', 'date'],
   pages: ['pages', 'page count', 'length'],
   coverUrl: ['cover', 'cover url', 'image'],
+  reading: ['reading', 'currently reading', 'current read', 'current'],
 };
 
 const normHeader = (h: string) => h.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -25,16 +26,19 @@ function pick(row: Row, field: keyof typeof ALIASES): string {
   return '';
 }
 
-/** "8.4" → 8.4, "4/5" → 8 (scaled to 10), "★★★★" → 8. */
-function parseRating(raw: string): number | undefined {
+/** "8.4" → 8.4, "4/5" → 8 (scaled to 10), "★★★★" → 8, "★★★½" → 7. */
+export function parseRating(raw: string): number | undefined {
   if (!raw) return undefined;
-  const stars = (raw.match(/★/g) ?? []).length;
+  const stars = (raw.match(/★/g) ?? []).length + (raw.includes('½') ? 0.5 : 0);
   if (stars) return stars * 2;
   const frac = raw.match(/^([\d.]+)\s*\/\s*([\d.]+)$/);
   if (frac) return (parseFloat(frac[1]) / parseFloat(frac[2])) * 10;
   const n = parseFloat(raw.replace(',', '.'));
   return Number.isFinite(n) ? n : undefined;
 }
+
+/** Any value marks the row ("Yes", "x", a ticked checkbox) except an explicit no. */
+const isMarked = (raw: string) => raw !== '' && !/^(no|n|false|0|-)$/i.test(raw);
 
 const parseNum = (raw: string) => {
   const n = parseFloat(raw.replace(/,/g, ''));
@@ -62,6 +66,7 @@ export function parseBooks(csv: string, prefix: string): Book[] {
         dateRead: pick(row, 'dateRead') || undefined,
         pages: parseNum(pick(row, 'pages')),
         coverUrl: pick(row, 'coverUrl') || undefined,
+        reading: isMarked(pick(row, 'reading')),
         order: i,
       } satisfies Book;
     })
@@ -87,21 +92,45 @@ function levenshtein(a: string, b: string): number {
   return dp[b.length];
 }
 
+/** Typos tolerated between two keys: none for short names, more for long ones. */
+const maxEdits = (len: number) => (len < 8 ? 0 : len < 15 ? 1 : 2);
+
+const lastWord = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().split(/\s+/).pop() ?? '';
+
+/**
+ * Authors only merge when their surnames are near-identical by the same
+ * length rule, so "Sandersen" joins "Sanderson" but "John Grey" ≠ "John Green".
+ */
+const sameSurname = (a: string, b: string) => {
+  const [x, y] = [lastWord(a), lastWord(b)];
+  return levenshtein(x, y) <= maxEdits(Math.min(x.length, y.length));
+};
+
 /**
  * Merges near-identical names (case, spacing, "The", small typos) and
  * rewrites each to the most common spelling. Ties go to the first seen.
+ * `canMerge` can veto a fuzzy (non-identical) match.
  */
-function unifyNames(books: Book[], get: (b: Book) => string, set: (b: Book, v: string) => void) {
-  const clusters: { key: string; counts: Map<string, number> }[] = [];
+export function unifyNames(
+  books: Book[],
+  get: (b: Book) => string,
+  set: (b: Book, v: string) => void,
+  canMerge: (a: string, b: string) => boolean = () => true,
+) {
+  const clusters: { key: string; name: string; counts: Map<string, number> }[] = [];
   const assignment = new Map<Book, (typeof clusters)[number]>();
   for (const b of books) {
     const name = get(b);
     if (!name) continue;
     const key = clusterKey(name);
     let c = clusters.find(
-      (c) => c.key === key || (key.length > 5 && levenshtein(c.key, key) <= 2),
+      (c) =>
+        c.key === key ||
+        (levenshtein(c.key, key) <= maxEdits(Math.min(c.key.length, key.length)) &&
+          canMerge(c.name, name)),
     );
-    if (!c) clusters.push((c = { key, counts: new Map() }));
+    if (!c) clusters.push((c = { key, name, counts: new Map() }));
     c.counts.set(name, (c.counts.get(name) ?? 0) + 1);
     assignment.set(b, c);
   }
@@ -117,7 +146,7 @@ function unifyNames(books: Book[], get: (b: Book) => string, set: (b: Book, v: s
 export function normalizeBooks(read: Book[], tbr: Book[]) {
   const all = [...read, ...tbr];
   unifyNames(all, (b) => b.series, (b, v) => (b.series = v));
-  unifyNames(all, (b) => b.author, (b, v) => (b.author = v));
+  unifyNames(all, (b) => b.author, (b, v) => (b.author = v), sameSurname);
   const genreCanon = new Map<string, string>();
   for (const b of all) {
     b.genres = b.genres.map((g) => {

@@ -600,3 +600,77 @@ button {
     padding: 8px 14px;
   }
 }
+
+/* ---- Currently reading ---------------------------------------------- */
+
+.now-reading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin: 4px 0 22px;
+}
+
+.now-card {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  width: min(520px, 100%);
+  padding: 16px;
+  text-align: left;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+}
+
+.now-card .muted {
+  color: var(--ink-soft);
+}
+
+.now-cover {
+  width: 120px;
+  height: 180px;
+  flex-shrink: 0;
+}
+
+.now-body {
+  min-width: 0;
+}
+
+.now-label {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a8741a;
+}
+
+.now-body h2 {
+  margin: 0 0 4px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+.now-author {
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+
+.now-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 560px) {
+  .now-cover {
+    width: 90px;
+    height: 135px;
+  }
+  .now-body h2 {
+    font-size: 1.2rem;
+  }
+}

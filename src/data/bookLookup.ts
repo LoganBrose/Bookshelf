@@ -11,6 +11,7 @@ const CACHE_KEY = 'bookshelf.lookup.v1';
 const HIT_TTL = 30 * 24 * 3600 * 1000;
 const MISS_TTL = 24 * 3600 * 1000;
 const MAX_CONCURRENT = 4;
+const PERSIST_DELAY = 500;
 
 type Entry = { info: BookInfo; t: number };
 
@@ -39,14 +40,26 @@ function isEmpty(i: BookInfo) {
 function save(key: string, info: BookInfo) {
   store.set(key, info);
   persisted[key] = { info, t: Date.now() };
+  schedulePersist();
+  version++;
+  listeners.forEach((l) => l());
+}
+
+// Results arrive one book at a time; write the whole cache at most every PERSIST_DELAY.
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+function schedulePersist() {
+  persistTimer ??= setTimeout(persist, PERSIST_DELAY);
+}
+function persist() {
+  clearTimeout(persistTimer);
+  persistTimer = undefined;
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(persisted));
   } catch {
     /* storage unavailable — in-memory cache still works */
   }
-  version++;
-  listeners.forEach((l) => l());
 }
+addEventListener('pagehide', () => persistTimer && persist());
 
 export const lookupKey = (b: Pick<Book, 'title' | 'author'>) =>
   `${b.title.toLowerCase()}|${b.author.toLowerCase()}`;
@@ -115,11 +128,14 @@ async function fromGoogleBooks(title: string, author: string): Promise<BookInfo>
   };
 }
 
-async function lookup(title: string, author: string): Promise<BookInfo> {
-  const [ol, gb] = await Promise.all([
-    fromOpenLibrary(title, author).catch(() => ({}) as BookInfo),
-    fromGoogleBooks(title, author).catch(() => ({}) as BookInfo),
+/** Merged info, or undefined when both sources failed (so nothing is cached). */
+async function lookup(title: string, author: string): Promise<BookInfo | undefined> {
+  const results = await Promise.allSettled([
+    fromOpenLibrary(title, author),
+    fromGoogleBooks(title, author),
   ]);
+  if (results.every((r) => r.status === 'rejected')) return undefined;
+  const [ol, gb] = results.map((r) => (r.status === 'fulfilled' ? r.value : {}));
   // Ratings: prefer whichever source has more votes behind it.
   const useOl = (ol.ratingsCount ?? 0) >= (gb.ratingsCount ?? 0);
   const rated = useOl ? ol : gb;
@@ -139,7 +155,8 @@ function ensure(book: Book) {
   enqueue(async () => {
     const info = await lookup(book.title, book.author);
     inflight.delete(key);
-    save(key, info);
+    // On failure (offline, rate-limited) leave it uncached so the next load retries.
+    if (info) save(key, info);
   });
 }
 
