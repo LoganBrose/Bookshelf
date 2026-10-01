@@ -48,4 +48,4 @@ To work offline with the bundled sample CSVs, run `VITE_USE_SAMPLE=1 npm run dev
 
 ## Deploy
 
-The workflow in `.github/workflows/deploy.yml` builds the site and publishes it to GitHub Pages. To turn it on, go to **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions**. After that, each push to `main` deploys the site.
+The workflow in `.github/workflows/deploy.yml` builds the site and publishes it to GitHub Pages. To turn it on, go to **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions**. After that, each push to `Main` deploys the site.
